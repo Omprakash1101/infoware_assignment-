@@ -22,7 +22,7 @@ CATEGORIES = [
 MAX_PRODUCTS = 1500
 DISCOUNT_THRESHOLD = 0
 USERNAME = "omprakashgopi2k05@gmail.com"
-PASSWORD = "Jayom2005@opm11"
+PASSWORD = "****************************************"
 COOKIES_FILE = "cookies.json"
 
 def init_driver():
