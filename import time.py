@@ -20,7 +20,7 @@ CATEGORIES = [
     "https://www.amazon.in/gp/bestsellers/electronics/ref=zg_bs_nav_electronics_0",
 ]
 MAX_PRODUCTS = 1500
-DISCOUNT_THRESHOLD = 50
+DISCOUNT_THRESHOLD = 0
 USERNAME = "omprakashgopi2k05@gmail.com"
 PASSWORD = "Jayom2005@opm11"
 COOKIES_FILE = "cookies.json"
@@ -89,45 +89,70 @@ def extract_discount(price, discounted_price):
 def scrape_category(driver, category_url, category_name):
     """Scrapes product details from a category URL."""
     driver.get(category_url)
+    time.sleep(3)  # Allow page to load fully
     products = []
     count = 0
 
     while count < MAX_PRODUCTS:
         try:
             # Find all products on the current page
-            items = driver.find_elements(By.CSS_SELECTOR, "div.zg-item-immersion")
-            for item in items:
+                items=driver.find_elements(By.CSS_SELECTOR, "div.p13n-desktop-grid .zg-grid-general-faceout ")
+                print(f"[DEBUG] Found {len(items)} items on the page for {category_name}. ,{count}")  # Debugging log
+                for item in items:
+                    try:
+                        # Extract product name
+                        name = item.find_element(By.CSS_SELECTOR, "div._cDEzb_p13n-sc-css-line-clamp-3_g3dy1").text.strip()
+                        # Extract price
+                        price_element = item.find_element(By.CSS_SELECTOR, "span._cDEzb_p13n-sc-price_3mJ9Z")
+                        price = price_element.text.replace("\u20b9", "").replace(",","").strip()
+                        # Simulate a fake discount for now
+                        try:
+                            rating_element = item.find_element(By.CSS_SELECTOR, "span.a-icon-alt")
+                            rating_text ="Not Available" if rating_element.text=="" else rating_element.text
+                        except NoSuchElementException:
+                            rating_text = "Not Available"
+                        discount = extract_discount(str(float(price) * 1.5), price)
+                        if discount > DISCOUNT_THRESHOLD:
+                            product_data = {
+                                "Category": category_name,
+                                "Name": name,
+                                "Price (INR)": price,
+                                "Discount (%)": discount,
+                                "Rating": rating_text,  # Placeholder
+                                "Sold By": "Not Available",
+                            }
+                            products.append(product_data)
+                            count += 1
+
+                    except NoSuchElementException:
+                        continue  # Ignore items with missing details
+                # Pagination logic
+                # Click 'Next' button to paginate
                 try:
-                    name = item.find_element(By.CSS_SELECTOR, "div.p13n-sc-truncate").text.strip()
-                    price_element = item.find_element(By.CSS_SELECTOR, "span.p13n-sc-price")
-                    price = price_element.text.replace("\u20b9", "").strip()
-                    
-                    # Placeholder: Discount calculation; simulate a fake discount logic
-                    discount = extract_discount(str(float(price) * 1.5), price)
-                    
-                    if discount > DISCOUNT_THRESHOLD:  # Focus only products >50% discount
-                        product_data = {
-                            "Category": category_name,
-                            "Name": name,
-                            "Price (INR)": price,
-                            "Discount (%)": discount,
-                            "Rating": "Not Available",  # Add logic to scrape rating
-                            "Sold By": "Not Available",
-                        }
-                        products.append(product_data)
-                        count += 1
+                    # Check for the 'Next' button
+                    next_button = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "li.a-last a"))
+                    )
 
-                except NoSuchElementException:
-                    pass  # Ignore items with missing details
+                    # Ensure the button is not disabled
+                    if "a-disabled" in next_button.get_attribute("class"):
+                        print(f"[INFO] 'Next' button is disabled. Stopping pagination for {category_name}.")
+                        break
 
-            # Click 'Next' button to paginate
-            next_button = driver.find_element(By.CSS_SELECTOR, "li.a-last a")
-            driver.execute_script("arguments[0].click();", next_button)
-            time.sleep(2)
-        except NoSuchElementException:
-            print("[INFO] End of page reached for category.")
+                    # Scroll to the button and click
+                    driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
+                    driver.execute_script("arguments[0].click();", next_button)
+                    time.sleep(5)  # Allow next page to load
+                except TimeoutException:
+                    print(f"[INFO] No 'Next' button found. Stopping pagination for {category_name}.")
+                    break
+
+        except Exception as e:
+            print(f"[ERROR] Error occurred while scraping {category_name}: {e}")
             break
-    return products
+
+    print(f"[INFO] Scraped {count} products from {category_name}.")
+    return products, count
 
 def save_to_csv(data, filename="amazon_products.csv"):
     """Save scraped data to a CSV file."""
@@ -150,7 +175,7 @@ def main():
         for url in CATEGORIES[:10]:
             category_name = url.split("/")[-1]  # Extract category name from URL
             print(f"[INFO] Scraping category: {category_name}")
-            category_products = scrape_category(driver, url, category_name)
+            category_products,count = scrape_category(driver, url, category_name)
             all_products.extend(category_products)
 
         # Step 3: Save data to CSV
