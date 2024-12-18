@@ -117,7 +117,7 @@ def scrape_category(driver, category_url, category_name):
                                 "Category": category_name,
                                 "Name": name,
                                 "Price (INR)": price,
-                                "Discount (%)": discount,
+                                "Discount (%)": "Not Available",
                                 "Rating": rating_text,  # Placeholder
                                 "Sold By": "Not Available",
                             }
